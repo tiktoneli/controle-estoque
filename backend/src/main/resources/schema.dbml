@@ -1,0 +1,200 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+// Enums
+enum item_status {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  DISPOSED
+}
+
+enum movement_type {
+  RECEIPT
+  TRANSFER
+  ISSUE
+  RETURN
+  ADJUSTMENT
+}
+
+enum attribute_data_type {
+  STRING
+  NUMBER
+  DATE
+  BOOLEAN
+  JSON
+}
+
+// Core Tables
+Table type {
+  id uuid [primary key]
+  name varchar(100) [not null]
+  description text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table attribute {
+  id uuid [primary key]
+  name varchar(100) [not null]
+  description text
+  data_type attribute_data_type [not null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table type_attribute {
+  type_id uuid [ref: > type.id]
+  attribute_id uuid [ref: > attribute.id]
+  is_required boolean [default: false]
+  default_value text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (type_id, attribute_id) [pk]
+  }
+}
+
+Table product {
+  id uuid [primary key]
+  type_id uuid [not null, ref: > type.id]
+  name varchar(100) [not null]
+  description text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    type_id
+  }
+}
+
+Table lot {
+  id uuid [primary key]
+  product_id uuid [not null, ref: > product.id]
+  lot_number varchar(50) [not null]
+  manufacturing_date date
+  expiration_date date
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    product_id
+    (product_id, lot_number) [unique]
+  }
+}
+
+Table location {
+  id uuid [primary key]
+  name varchar(100) [not null]
+  description text
+  parent_id uuid [ref: > location.id]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    parent_id
+  }
+}
+
+Table item {
+  id uuid [primary key]
+  product_id uuid [not null, ref: > product.id]
+  lot_id uuid [not null, ref: > lot.id]
+  location_id uuid [not null, ref: > location.id]
+  serial_number varchar(100) [not null]
+  status item_status [not null, default: 'ACTIVE']
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    product_id
+    lot_id
+    location_id
+    (product_id, serial_number) [unique]
+  }
+}
+
+Table item_attribute {
+  id uuid [primary key]
+  item_id uuid [not null, ref: > item.id]
+  attribute_id uuid [not null, ref: > attribute.id]
+  value text [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    item_id
+    attribute_id
+    (item_id, attribute_id) [unique]
+  }
+}
+
+// User Management Tables
+Table team {
+  id uuid [primary key]
+  name varchar(100) [not null]
+  description text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table role {
+  id uuid [primary key]
+  name varchar(100) [not null]
+  description text
+  permissions jsonb [not null, default: '[]']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table "user" {
+  id uuid [primary key]
+  team_id uuid [not null, ref: > team.id]
+  role_id uuid [not null, ref: > role.id]
+  username varchar(50) [not null, unique]
+  email varchar(255) [not null, unique]
+  name varchar(100) [not null]
+  password_hash varchar(255) [not null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    team_id
+    role_id
+  }
+}
+
+// Movement Tracking
+Table inventory_movement {
+  id uuid [primary key]
+  item_id uuid [not null, ref: > item.id]
+  from_location_id uuid [ref: > location.id]
+  to_location_id uuid [ref: > location.id]
+  user_id uuid [not null, ref: > user.id]
+  movement_type movement_type [not null]
+  notes text
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    item_id
+    from_location_id
+    to_location_id
+    user_id
+  }
+}
+
+// System Configuration
+Table system_parameter {
+  id uuid [primary key]
+  key varchar(100) [not null, unique]
+  value text [not null]
+  user_id uuid [not null, ref: > user.id]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    user_id
+  }
+} 

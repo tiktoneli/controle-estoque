@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-ControleEstoqueApplication<controle-estoque>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.brisa.controleEstoque.ControleEstoqueApplication",
+            "projectName": "controle-estoque",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
