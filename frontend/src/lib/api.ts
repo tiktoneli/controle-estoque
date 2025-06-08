@@ -1,93 +1,80 @@
-import { PageRequest } from '../types/pagination';
+import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+// import { PageRequest } from '../types/pagination'; // Removed unused import again
+import { ErrorResponse } from '../types'; // Import ErrorResponse from shared types
 
-const API_URL = 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-export const api = {
-  async get<T>(endpoint: string, pageRequest?: PageRequest): Promise<T> {
-    const url = new URL(`${API_URL}/${endpoint}`);
-    
-    if (pageRequest) {
-      url.searchParams.append('page', pageRequest.page.toString());
-      url.searchParams.append('size', pageRequest.size.toString());
-      if (pageRequest.sort) {
-        pageRequest.sort.forEach(sort => url.searchParams.append('sort', sort));
+const api: AxiosInstance = axios.create({
+  baseURL: `${API_URL}/api`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor to add the authorization header
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    // You can add any successful response handling here if needed
+    return response;
+  },
+  (error: AxiosError) => {
+    if (error.response) {
+      const errorResponseData = error.response.data as ErrorResponse;
+      
+      // If there are validation errors, format them into a readable message
+      if (errorResponseData.validationErrors) {
+        const validationMessages = Object.entries(errorResponseData.validationErrors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join(', ');
+        throw new Error(`Validation Failed: ${validationMessages}`);
       }
+
+      // Use the error message from the backend if available
+      if (errorResponseData.message) {
+        throw new Error(errorResponseData.message);
+      }
+
+      // Fallback to status-specific messages
+      switch (error.response.status) {
+        case 400:
+          throw new Error('Invalid request. Please check your input.');
+        case 401:
+          throw new Error('Please log in to continue.');
+        case 403:
+          throw new Error('You do not have permission to perform this action.');
+        case 404:
+          throw new Error('The requested resource was not found.');
+        case 409:
+          throw new Error('This record already exists.');
+        case 500:
+          throw new Error('An unexpected error occurred. Please try again later.');
+        default:
+          throw new Error('An unexpected error occurred.');
+      }
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('API Error: No response received', error.request);
+      throw new Error('No response received from server. Please check your connection and try again.');
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('API Error:', error.message);
+      throw new Error(`Request failed: ${error.message}`);
     }
+  }
+);
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async post<T>(endpoint: string, data: Record<string, unknown>): Promise<T> {
-    const response = await fetch(`${API_URL}/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Check if there's content to parse
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-    return response.json();
-    }
-    
-    // Return empty object for 201 responses with no content
-    if (response.status === 201) {
-      return {} as T;
-    }
-
-    throw new Error('Unexpected response format');
-  },
-
-  async put<T>(endpoint: string, data: Record<string, unknown>): Promise<T> {
-    const response = await fetch(`${API_URL}/${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Check if there's content to parse
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-    return response.json();
-    }
-    
-    // Return empty object for 200/204 responses with no content
-    if (response.status === 200 || response.status === 204) {
-      return {} as T;
-    }
-
-    throw new Error('Unexpected response format');
-  },
-
-  async delete(endpoint: string): Promise<void> {
-    const response = await fetch(`${API_URL}/${endpoint}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  },
-};
+export { api };

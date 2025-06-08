@@ -19,6 +19,7 @@ public class TypeAttributeMapper {
         dto.setUpdatedAt(attribute.getUpdatedAt());
         dto.setDefaultValue(typeAttribute.getDefaultValue());
         dto.setIsRequired(typeAttribute.getIsRequired());
+        dto.setIsUnique(typeAttribute.getIsUnique());
         return dto;
     }
 } 

@@ -1,13 +1,8 @@
 package com.brisa.controleEstoque.controller;
 
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,9 +15,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.validation.annotation.Validated;
-import com.brisa.controleEstoque.config.validation.OnCreate;
-import com.brisa.controleEstoque.config.validation.OnUpdate;
-
 import com.brisa.controleEstoque.dto.requests.RequestLocationDTO;
 import com.brisa.controleEstoque.dto.responses.ResponseLocationDTO;
 import com.brisa.controleEstoque.entity.Location;
@@ -30,14 +22,11 @@ import com.brisa.controleEstoque.mapper.LocationMapper;
 import com.brisa.controleEstoque.service.LocationService;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Max;
 
 @RestController
 @Validated

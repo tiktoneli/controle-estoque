@@ -2,6 +2,7 @@ export interface Product {
   id: string;
   name: string;
   typeId: string;
+  description?: string;
 }
 
 export interface ProductType {
@@ -99,4 +100,13 @@ export interface TypeAttribute {
   defaultValue?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ErrorResponse {
+  status: number;
+  title: string;
+  message: string;
+  timestamp: string; // Assuming backend LocalDateTime is sent as string
+  path?: string; // Optional field
+  validationErrors?: { [key: string]: string }; // Optional field for validation errors
 }

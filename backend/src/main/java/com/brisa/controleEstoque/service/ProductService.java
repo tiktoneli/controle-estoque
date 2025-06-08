@@ -3,19 +3,16 @@ package com.brisa.controleEstoque.service;
 import com.brisa.controleEstoque.dto.requests.RequestProductDTO;
 import com.brisa.controleEstoque.entity.Product;
 import com.brisa.controleEstoque.entity.Type;
-import com.brisa.controleEstoque.exceptions.ResourceBadRequestException;
 import com.brisa.controleEstoque.exceptions.ResourceNotFoundException;
 import com.brisa.controleEstoque.mapper.ProductMapper;
 import com.brisa.controleEstoque.repository.ProductRepository;
 import com.brisa.controleEstoque.repository.TypeRepository;
 import com.brisa.controleEstoque.repository.specification.ProductSpecification;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service

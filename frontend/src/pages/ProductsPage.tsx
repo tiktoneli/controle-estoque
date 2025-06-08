@@ -12,7 +12,7 @@ import { FilterBar, FilterConfig } from '../components/common/FilterBar';
 import { DeleteConfirmationModal } from '../components/common/DeleteConfirmationModal';
 import { api } from '../lib/api';
 import { usePagination } from '../hooks/usePagination';
-import { PageRequest } from '../types/pagination';
+import { PageRequest, Page } from '../types/pagination';
 
 export const ProductsPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -32,8 +32,9 @@ export const ProductsPage: React.FC = () => {
     description: '',
   });
   const { addToast } = useToast();
+  const [isLoadingTypes, setIsLoadingTypes] = useState(true);
 
-  const fetchProducts = async (pageRequest: PageRequest) => {
+  const fetchProducts = async (pageRequest: PageRequest): Promise<Page<Product>> => {
     const params = new URLSearchParams();
     
     if (debouncedSearch) {
@@ -44,17 +45,32 @@ export const ProductsPage: React.FC = () => {
     }
     
     const endpoint = `products?${params.toString()}`;
-    return api.get<Product>(endpoint, pageRequest);
+    const response = await api.get<Page<Product>>(endpoint, { params: pageRequest });
+    return response.data;
   };
 
   const fetchProductTypes = async () => {
-    const response = await api.get<ProductType>('types');
-    setProductTypes(response.content);
+    try {
+      setIsLoadingTypes(true);
+      const response = await api.get<Page<ProductType>>('types');
+      console.log('Product types API response data:', response.data);
+      setProductTypes(response.data.content);
+    } catch (error) {
+      console.error('Error fetching product types:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load product types';
+      addToast({
+        title: 'Error',
+        message: errorMessage,
+        type: 'error',
+      });
+    } finally {
+      setIsLoadingTypes(false);
+    }
   };
 
   const {
     data: productsPage,
-    loading: isLoading,
+    loading: isLoadingProducts,
     pageInfo,
     currentPage,
     setCurrentPage,
@@ -108,7 +124,7 @@ export const ProductsPage: React.FC = () => {
         ...formData,
         description: formData.description ?? ''
       });
-      loadPage(0); // Refresh first page
+      loadPage(0);
       setIsAddModalOpen(false);
       resetForm();
       addToast({
@@ -118,10 +134,11 @@ export const ProductsPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error creating product:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create product';
       addToast({
         title: 'Error',
-        message: 'Failed to create product',
-        type: 'error'
+        message: errorMessage,
+        type: 'error',
       });
     }
   };
@@ -141,7 +158,7 @@ export const ProductsPage: React.FC = () => {
         ...formData,
         description: formData.description ?? ''
       });
-      loadPage(currentPage); // Refresh current page
+      loadPage(currentPage);
       setIsEditModalOpen(false);
       resetForm();
       addToast({
@@ -151,10 +168,11 @@ export const ProductsPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error updating product:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update product';
       addToast({
         title: 'Error',
-        message: 'Failed to update product',
-        type: 'error'
+        message: errorMessage,
+        type: 'error',
       });
     }
   };
@@ -164,7 +182,7 @@ export const ProductsPage: React.FC = () => {
       if (!selectedProduct) return;
 
       await api.delete(`products/${selectedProduct.id}`);
-      loadPage(currentPage); // Refresh current page
+      loadPage(currentPage);
       setIsDeleteModalOpen(false);
       addToast({
         title: 'Success',
@@ -173,10 +191,11 @@ export const ProductsPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error deleting product:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete product';
       addToast({
         title: 'Error',
-        message: 'Failed to delete product',
-        type: 'error'
+        message: errorMessage,
+        type: 'error',
       });
     }
   };
@@ -196,7 +215,7 @@ export const ProductsPage: React.FC = () => {
       header: 'Type',
       accessorKey: 'typeId',
       cell: (row) => {
-        const type = productTypes.find(t => t.id === row.typeId);
+        const type = (productTypes || []).find(t => t.id === row.typeId);
         return type ? type.name : '-';
       }
     },
@@ -223,7 +242,7 @@ export const ProductsPage: React.FC = () => {
       placeholder: 'Select a type...',
       options: [
         { value: '', label: 'All Types' },
-        ...productTypes.map(type => ({
+        ...(productTypes || []).map(type => ({
           value: type.id,
           label: type.name
         }))
@@ -246,16 +265,20 @@ export const ProductsPage: React.FC = () => {
         </Button>
       </div>
 
-      <FilterBar
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        config={filterConfig}
-      />
+      {isLoadingTypes ? (
+        <div className="flex justify-center items-center py-8"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00859e]"></div></div>
+      ) : (
+        <FilterBar
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          config={filterConfig}
+        />
+      )}
 
       <DataTable
         data={productsPage?.content || []}
         columns={columns}
-        isLoading={isLoading}
+        isLoading={isLoadingProducts}
         onEdit={(product) => {
           setSelectedProduct(product);
           setFormData({
@@ -275,71 +298,73 @@ export const ProductsPage: React.FC = () => {
       />
 
       {/* Add/Edit Product Modal */}
-      <Modal
-        isOpen={isAddModalOpen || isEditModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setIsEditModalOpen(false);
-          resetForm();
-        }}
-        title={isEditModalOpen ? 'Edit Product' : 'Add New Product'}
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (isEditModalOpen) {
-              handleEditProduct();
-            } else {
-              handleAddProduct();
-            }
+      {(isAddModalOpen || isEditModalOpen) && !isLoadingTypes && (
+        <Modal
+          isOpen={isAddModalOpen || isEditModalOpen}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setIsEditModalOpen(false);
+            resetForm();
           }}
-          className="space-y-4"
+          title={isEditModalOpen ? 'Edit Product' : 'Add New Product'}
         >
-          <Input
-            label="Name"
-            name="name"
-            value={formData.name}
-            onChange={handleFormChange}
-            required
-          />
-          <Select
-            label="Product Type"
-            name="typeId"
-            value={formData.typeId}
-            onChange={(value) => handleSelectChange('typeId', value)}
-            options={[
-              { value: '', label: 'Select a type...' },
-              ...productTypes.map(type => ({
-                value: type.id,
-                label: type.name
-              }))
-            ]}
-            required
-          />
-          <Input
-            label="Description"
-            name="description"
-            value={formData.description}
-            onChange={handleFormChange}
-          />
-          <div className="flex justify-end space-x-2 mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsAddModalOpen(false);
-                setIsEditModalOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              {isEditModalOpen ? 'Save Changes' : 'Create'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (isEditModalOpen) {
+                handleEditProduct();
+              } else {
+                handleAddProduct();
+              }
+            }}
+            className="space-y-4"
+          >
+            <Input
+              label="Name"
+              name="name"
+              value={formData.name}
+              onChange={handleFormChange}
+              required
+            />
+            <Select
+              label="Product Type"
+              name="typeId"
+              value={formData.typeId}
+              onChange={(value) => handleSelectChange('typeId', value)}
+              options={[
+                { value: '', label: 'Select a type...' },
+                ...(productTypes || []).map(type => ({
+                  value: type.id,
+                  label: type.name
+                }))
+              ]}
+              required
+            />
+            <Input
+              label="Description"
+              name="description"
+              value={formData.description}
+              onChange={handleFormChange}
+            />
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setIsEditModalOpen(false);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                {isEditModalOpen ? 'Save Changes' : 'Create'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Delete Product Modal */}
       <DeleteConfirmationModal

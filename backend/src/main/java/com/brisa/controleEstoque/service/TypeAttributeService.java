@@ -13,7 +13,6 @@ import com.brisa.controleEstoque.mapper.TypeAttributeMapper;
 import com.brisa.controleEstoque.repository.AttributeRepository;
 import com.brisa.controleEstoque.repository.TypeAttributeRepository;
 import org.springframework.context.event.EventListener;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -81,6 +80,7 @@ public class TypeAttributeService {
                 .type(type)
                 .attribute(attribute)
                 .isRequired(dto.getIsRequired())
+                .isUnique(dto.getIsUnique() != null ? dto.getIsUnique() : false)
                 .defaultValue(dto.getDefaultValue())
                 .build();
 
@@ -101,12 +101,17 @@ public class TypeAttributeService {
             ta.setIsRequired(dto.getIsRequired());
             changed = true;
         }
-        if (dto.getDefaultValue() != null) {
+        if (dto.getIsUnique() != null) {
+            ta.setIsUnique(dto.getIsUnique());
+            changed = true;
+        }
+        // Allow setting defaultValue to null by removing the null check
+        // if (dto.getDefaultValue() != null) { 
             // Validate the new default value against the attribute's data type
             validateDefaultValue(dto.getDefaultValue(), attribute.getDataType(), attribute.getOptions());
             ta.setDefaultValue(dto.getDefaultValue());
             changed = true;
-        }
+        // }
 
         final TypeAttribute updatedTa = changed ? typeAttributeRepository.save(ta) : ta;
         return typeAttributeMapper.toDto(updatedTa, attribute);

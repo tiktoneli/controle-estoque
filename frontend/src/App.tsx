@@ -10,8 +10,8 @@ import { ProductsPage } from './pages/ProductsPage';
 import { ProductTypesPage } from './pages/ProductTypesPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import InventoryPage from './pages/InventoryPage';
 // import { SettingsPage } from './pages/SettingsPage';
-// import { InventoryPage } from './pages/InventoryPage';
 
 function App() {
   return (
@@ -28,7 +28,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<MainLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
-                {/* <Route path="/inventory" element={<InventoryPage />} /> */}
+                <Route path="/inventory" element={<InventoryPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/product-types" element={<ProductTypesPage />} />
                 <Route path="/locations" element={<LocationsPage />} />

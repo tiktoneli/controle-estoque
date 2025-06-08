@@ -8,7 +8,6 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { useToast } from '../../context/ToastContext';
 import { Page } from '../../types/pagination';
-import { AxiosError } from 'axios';
 
 interface TypeAttributesModalProps {
     isOpen: boolean;
@@ -19,22 +18,11 @@ interface TypeAttributesModalProps {
 
 type ModalView = 'list' | 'add' | 'edit';
 
-interface AttributePayload {
-    attributeId?: string;
-    name?: string;
-    dataType?: string;
-    options?: string;
-    isRequired: boolean;
-    defaultValue?: string;
-    [key: string]: unknown;
-}
-
 const DATA_TYPES = [
-    { value: 'STRING', label: 'String' },
+    { value: 'STRING', label: 'Text' },
     { value: 'NUMBER', label: 'Number' },
-    { value: 'DATE', label: 'Date' },
     { value: 'BOOLEAN', label: 'Boolean' },
-    { value: 'SELECT', label: 'Select (Dropdown)' },
+    { value: 'SELECT', label: 'Select from options' },
 ];
 
 const DefaultValueAndRequiredFields: React.FC<{
@@ -44,7 +32,8 @@ const DefaultValueAndRequiredFields: React.FC<{
     isRequired: boolean;
     onDefaultValueChange: (value: string) => void;
     onRequiredChange: (checked: boolean) => void;
-}> = ({ dataType, options, defaultValue, isRequired, onDefaultValueChange, onRequiredChange }) => (
+    disabled?: boolean;
+}> = ({ dataType, options, defaultValue, isRequired, onDefaultValueChange, onRequiredChange, disabled }) => (
     <>
         {dataType === 'SELECT' ? (
             <Input
@@ -53,6 +42,7 @@ const DefaultValueAndRequiredFields: React.FC<{
                 value={defaultValue}
                 onChange={e => onDefaultValueChange(e.target.value)}
                 placeholder={`Enter one of: ${options}`}
+                disabled={disabled}
             />
         ) : dataType === 'NUMBER' ? (
             <Input
@@ -62,6 +52,7 @@ const DefaultValueAndRequiredFields: React.FC<{
                 value={defaultValue}
                 onChange={e => onDefaultValueChange(e.target.value)}
                 placeholder="Enter a number"
+                disabled={disabled}
             />
         ) : dataType === 'DATE' ? (
             <Input
@@ -70,6 +61,7 @@ const DefaultValueAndRequiredFields: React.FC<{
                 name="defaultValue"
                 value={defaultValue}
                 onChange={e => onDefaultValueChange(e.target.value)}
+                disabled={disabled}
             />
         ) : dataType === 'BOOLEAN' ? (
             <Select
@@ -82,6 +74,7 @@ const DefaultValueAndRequiredFields: React.FC<{
                 ]}
                 value={defaultValue}
                 onChange={onDefaultValueChange}
+                disabled={disabled}
             />
         ) : (
             <Input
@@ -89,15 +82,17 @@ const DefaultValueAndRequiredFields: React.FC<{
                 name="defaultValue"
                 value={defaultValue}
                 onChange={e => onDefaultValueChange(e.target.value)}
+                disabled={disabled}
             />
         )}
         <div className="flex items-center gap-2 mt-2">
-            <input
+            <Input
                 type="checkbox"
                 name="isRequired"
                 checked={isRequired}
                 onChange={e => onRequiredChange(e.target.checked)}
                 id="isRequired"
+                className="h-4 w-4 text-[#00859e] focus:ring-[#00859e] border-gray-300 rounded"
             />
             <label htmlFor="isRequired">Required</label>
         </div>
@@ -118,6 +113,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
         options: '',
         isRequired: false,
         defaultValue: '',
+        isUnique: false,
     });
     const { addToast } = useToast();
 
@@ -125,10 +121,10 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
         if (isOpen) {
             setLoading(true);
             api.get<TypeAttribute[]>(`types/${typeId}/attributes`)
-                .then((data) => {
-                    console.log('Raw API response:', data);
-                    console.log('First item structure:', data[0]);
-                    setAttributes(data);
+                .then((response) => {
+                    console.log('Raw API response:', response);
+                    console.log('First item structure:', response.data[0]);
+                    setAttributes(response.data);
                 })
                 .catch((error) => {
                     console.error('Error fetching attributes:', error);
@@ -147,9 +143,9 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
     useEffect(() => {
         if (currentView === 'add' && mode === 'existing') {
             setLoading(true);
-            api.get<Page<Attribute>>('attributes', { page: 0, size: 100 })
-                .then((data) => {
-                    setExistingAttributes(data.content);
+            api.get<Page<Attribute>>('attributes', { params: { page: 0, size: 100 } })
+                .then((response) => {
+                    setExistingAttributes(response.data.content);
                 })
                 .catch((error) => {
                     console.error('Error fetching existing attributes:', error);
@@ -190,51 +186,58 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
 
     const handleAddSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Validate default value if we're creating a new attribute
-        if (mode === 'new' && form.defaultValue) {
-            if (!validateDefaultValue(form.defaultValue, form.dataType, form.options)) {
-                return;
-            }
-        }
-        // Validate default value if we're linking an existing attribute
-        else if (mode === 'existing' && form.defaultValue) {
-            const selectedAttr = existingAttributes.find(a => a.id === form.attributeId);
-            if (selectedAttr && !validateDefaultValue(form.defaultValue, selectedAttr.dataType, selectedAttr.options)) {
-                return;
-            }
-        }
-
         setLoading(true);
-        const payload: AttributePayload = {
-            isRequired: form.isRequired,
-            defaultValue: form.defaultValue,
-        };
-        if (mode === 'existing') {
-            payload.attributeId = form.attributeId;
-        } else {
-            payload.name = form.name;
-            payload.dataType = form.dataType;
-            payload.options = form.dataType === 'SELECT' ? form.options : undefined;
-        }
         try {
-            const newAttribute = await api.post<TypeAttribute>(`types/${typeId}/attributes`, payload);
-            setAttributes(prev => [...prev, newAttribute]);
+            // Validate default value if we're creating a new attribute
+            if (mode === 'new' && form.defaultValue) {
+                if (!validateDefaultValue(form.defaultValue, form.dataType, form.options)) {
+                    setLoading(false);
+                    return;
+                }
+            }
+            // Validate default value if we're linking an existing attribute
+            else if (mode === 'existing' && form.defaultValue) {
+                const selectedAttr = existingAttributes.find(a => a.id === form.attributeId);
+                if (selectedAttr && !validateDefaultValue(form.defaultValue, selectedAttr.dataType, selectedAttr.options)) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            if (mode === 'new') {
+                // Construct payload explicitly to ensure null for empty optional fields
+                const payload = {
+                    name: form.name,
+                    dataType: form.dataType,
+                    options: form.options || null, // Send null if options is empty string
+                    isRequired: form.isRequired,
+                    defaultValue: form.defaultValue || null, // Send null if defaultValue is empty string
+                    isUnique: form.isUnique,
+                };
+                const response = await api.post<TypeAttribute>(`types/${typeId}/attributes`, payload);
+                setAttributes(prev => [...prev, response.data]);
+            } else {
+                // Linking an existing attribute - already sends a constructed object with || null
+                const response = await api.post<TypeAttribute>(`types/${typeId}/attributes`, {
+                    attributeId: form.attributeId,
+                    isRequired: form.isRequired,
+                    defaultValue: form.defaultValue || null,
+                    isUnique: form.isUnique,
+                });
+                 setAttributes(prev => [...prev, response.data]);
+            }
             setCurrentView('list');
-            addToast({ 
-                title: 'Success', 
-                message: mode === 'existing' ? 'Attribute linked successfully' : 'Attribute created and added successfully', 
-                type: 'success' 
+            addToast({
+                title: 'Success',
+                message: 'Attribute added successfully',
+                type: 'success'
             });
-        } catch (error: unknown) {
-            console.error('Error adding/linking attribute:', error);
-            const errorMessage = error instanceof AxiosError 
-                ? error.response?.data?.message || 'Failed to add/link attribute'
-                : 'Failed to add/link attribute';
-            addToast({ 
-                title: 'Error', 
-                message: errorMessage,
-                type: 'error' 
+        } catch (error) {
+            console.error('Error adding attribute:', error);
+            addToast({
+                title: 'Error',
+                message: error instanceof Error ? error.message : 'Failed to add attribute',
+                type: 'error'
             });
         } finally {
             setLoading(false);
@@ -244,30 +247,34 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
     const handleEditSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedAttribute) return;
-
-        // Validate default value
-        if (form.defaultValue && !validateDefaultValue(form.defaultValue, selectedAttribute.dataType, selectedAttribute.options)) {
-            return;
-        }
-
         setLoading(true);
         try {
-            const updatedAttribute = await api.put<TypeAttribute>(`types/${typeId}/attributes/${selectedAttribute.id}`, {
+            // Validate default value
+            if (form.defaultValue && !validateDefaultValue(form.defaultValue, selectedAttribute.dataType, selectedAttribute.options)) {
+                setLoading(false);
+                return;
+            }
+
+            const response = await api.put<TypeAttribute>(`types/${typeId}/attributes/${selectedAttribute.id}`, {
                 isRequired: form.isRequired,
-                defaultValue: form.defaultValue,
+                defaultValue: form.defaultValue || null,
+                isUnique: form.isUnique,
             });
-            setAttributes(prev => prev.map(a => a.id === selectedAttribute.id ? updatedAttribute : a));
+            setAttributes(prev => prev.map(attr => 
+                attr.id === selectedAttribute.id ? response.data : attr
+            ));
             setCurrentView('list');
-            addToast({ title: 'Success', message: 'Attribute settings updated successfully', type: 'success' });
-        } catch (error: unknown) {
-            console.error('Error updating attribute settings:', error);
-            const errorMessage = error instanceof AxiosError
-                ? error.response?.data?.message || 'Failed to update attribute settings'
-                : 'Failed to update attribute settings';
-            addToast({ 
-                title: 'Error', 
-                message: errorMessage,
-                type: 'error' 
+            addToast({
+                title: 'Success',
+                message: 'Attribute updated successfully',
+                type: 'success'
+            });
+        } catch (error) {
+            console.error('Error updating attribute:', error);
+            addToast({
+                title: 'Error',
+                message: error instanceof Error ? error.message : 'Failed to update attribute',
+                type: 'error'
             });
         } finally {
             setLoading(false);
@@ -281,8 +288,12 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                 setAttributes((prev) => prev.filter((a) => a.id !== attr.id));
                 addToast({ title: 'Success', message: 'Attribute unlinked successfully', type: 'success' });
             })
-            .catch(() => {
-                addToast({ title: 'Error', message: 'Failed to unlink attribute', type: 'error' });
+            .catch((error) => {
+                addToast({ 
+                    title: 'Error', 
+                    message: error instanceof Error ? error.message : 'Failed to unlink attribute',
+                    type: 'error' 
+                });
             })
             .finally(() => setLoading(false));
     };
@@ -327,6 +338,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                             options: '',
                             isRequired: row.isRequired,
                             defaultValue: row.defaultValue || '',
+                            isUnique: false,
                         });
                         setCurrentView('edit');
                     }}>Edit</Button>
@@ -352,6 +364,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                     options: '',
                                     isRequired: false,
                                     defaultValue: '',
+                                    isUnique: false,
                                 });
                             }}>Add/Link Attribute</Button>
                         </div>
@@ -440,7 +453,31 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                                                 isRequired={form.isRequired}
                                                                 onDefaultValueChange={val => setForm(prev => ({ ...prev, defaultValue: val }))}
                                                                 onRequiredChange={checked => setForm(prev => ({ ...prev, isRequired: checked }))}
+                                                                disabled={form.isUnique}
                                                             />
+                                                        );
+                                                    })()}
+                                                    {form.attributeId && (() => {
+                                                        const selectedAttr = existingAttributes.find(a => a.id === form.attributeId);
+                                                        if (!selectedAttr) return null;
+                                                        return (
+                                                            selectedAttr?.dataType !== 'BOOLEAN' && (
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        name="isUnique"
+                                                                        checked={form.isUnique}
+                                                                        onChange={(e) => {
+                                                                            handleChange(e);
+                                                                            if (e.target.checked) {
+                                                                                setForm(prev => ({ ...prev, defaultValue: '' }));
+                                                                            }
+                                                                        }}
+                                                                        id="isUniqueExisting"
+                                                                    />
+                                                                    <label htmlFor="isUniqueExisting">Unique Attribute</label>
+                                                                </div>
+                                                            )
                                                         );
                                                     })()}
                                         </>
@@ -474,7 +511,25 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                         isRequired={form.isRequired}
                                         onDefaultValueChange={val => setForm(prev => ({ ...prev, defaultValue: val }))}
                                         onRequiredChange={checked => setForm(prev => ({ ...prev, isRequired: checked }))}
+                                        disabled={form.isUnique}
                                     />
+                                    {form.dataType !== 'BOOLEAN' && (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                name="isUnique"
+                                                checked={form.isUnique}
+                                                onChange={(e) => {
+                                                    handleChange(e);
+                                                    if (e.target.checked) {
+                                                        setForm(prev => ({ ...prev, defaultValue: '' }));
+                                                    }
+                                                }}
+                                                id="isUniqueNew"
+                                            />
+                                            <label htmlFor="isUniqueNew">Unique Attribute</label>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -519,6 +574,23 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                             />
                             <label htmlFor="isRequired">Required</label>
                         </div>
+                        {selectedAttribute?.dataType !== 'BOOLEAN' && (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    name="isUnique"
+                                    checked={form.isUnique}
+                                    onChange={(e) => {
+                                        handleChange(e);
+                                        if (e.target.checked) {
+                                            setForm(prev => ({ ...prev, defaultValue: '' }));
+                                        }
+                                    }}
+                                    id="isUniqueEdit"
+                                />
+                                <label htmlFor="isUniqueEdit">Unique Attribute</label>
+                            </div>
+                        )}
                         {selectedAttribute?.dataType === 'SELECT' ? (
                             <Input
                                 label="Default Value"
@@ -526,6 +598,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                 value={form.defaultValue}
                                 onChange={handleChange}
                                 placeholder={`Enter one of: ${selectedAttribute.options}`}
+                                disabled={form.isUnique}
                             />
                         ) : selectedAttribute?.dataType === 'NUMBER' ? (
                             <Input
@@ -535,6 +608,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                 value={form.defaultValue}
                                 onChange={handleChange}
                                 placeholder="Enter a number"
+                                disabled={form.isUnique}
                             />
                         ) : selectedAttribute?.dataType === 'DATE' ? (
                             <Input
@@ -543,6 +617,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                 name="defaultValue"
                                 value={form.defaultValue}
                                 onChange={handleChange}
+                                disabled={form.isUnique}
                             />
                         ) : selectedAttribute?.dataType === 'BOOLEAN' ? (
                             <Select
@@ -555,6 +630,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                 ]}
                                 value={form.defaultValue}
                                 onChange={val => setForm(prev => ({ ...prev, defaultValue: val }))}
+                                disabled={form.isUnique}
                             />
                         ) : (
                             <Input
@@ -562,6 +638,7 @@ export const TypeAttributesModal: React.FC<TypeAttributesModalProps> = ({ isOpen
                                 name="defaultValue"
                                 value={form.defaultValue}
                                 onChange={handleChange}
+                                disabled={form.isUnique}
                             />
                         )}
                         <div className="flex justify-end gap-2">

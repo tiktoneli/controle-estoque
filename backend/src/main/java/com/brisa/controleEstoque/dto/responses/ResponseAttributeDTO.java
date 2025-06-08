@@ -35,6 +35,9 @@ public class ResponseAttributeDTO {
     @Schema(description = "Default value for this attribute in this type", example = "blue")
     private String defaultValue;
 
+    @Schema(description = "Whether this attribute must have a unique value for each item", example = "true")
+    private Boolean isUnique;
+
     public UUID getId() {
         return id;
     }
@@ -105,5 +108,13 @@ public class ResponseAttributeDTO {
 
     public void setDefaultValue(String defaultValue) {
         this.defaultValue = defaultValue;
+    }
+
+    public Boolean getIsUnique() {
+        return isUnique;
+    }
+
+    public void setIsUnique(Boolean isUnique) {
+        this.isUnique = isUnique;
     }
 } 

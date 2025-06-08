@@ -61,13 +61,6 @@ export const Modal: React.FC<ModalProps> = ({
     full: 'max-w-full',
   };
 
-  // Handle click outside to close
-  // const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-  //   if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-  //     onClose();
-  //   }
-  // };
-
   return (
     <div
       className={`fixed inset-0 ${isNested ? 'z-[60]' : 'z-50'} bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto`}

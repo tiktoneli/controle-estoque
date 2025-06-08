@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { UserRole } from '../types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const AcceptInvitePage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -16,7 +18,7 @@ const AcceptInvitePage: React.FC = () => {
   const [isValid, setIsValid] = useState(false);
   const [inviteData, setInviteData] = useState<{
     email: string;
-    role: string;
+    role: UserRole;
     expires_at: string;
   } | null>(null);
 
@@ -25,8 +27,8 @@ const AcceptInvitePage: React.FC = () => {
       const token = searchParams.get('token');
       if (!token) {
         addToast({
-          title: 'Invalid Invite',
-          message: 'No invite token found',
+          title: 'Error',
+          message: 'Invalid invite link',
           type: 'error'
         });
         navigate('/');
@@ -34,56 +36,12 @@ const AcceptInvitePage: React.FC = () => {
       }
 
       try {
-        console.log('Validating invite with token:', token);
-        
-        // Check if invite exists and is valid
-        const { data, error } = await supabase
-          .from('invites')
-          .select('*')
-          .eq('invite_token', token)
-          .maybeSingle();
-
-        console.log('Query response:', { data, error });
-
-        if (error) {
-          console.error('Query error:', error);
-          throw error;
+        const response = await fetch(`${API_URL}/api/invites/validate/${token}`);
+        if (!response.ok) {
+          throw new Error('Invalid or expired invite');
         }
 
-        if (!data) {
-          addToast({
-            title: 'Invalid Invite',
-            message: 'Invite not found',
-            type: 'error'
-          });
-          navigate('/');
-          return;
-        }
-
-        // Check if invite is expired
-        const now = new Date();
-        const expiresAt = new Date(data.expires_at);
-        if (now > expiresAt) {
-          addToast({
-            title: 'Invite Expired',
-            message: 'This invite has expired',
-            type: 'error'
-          });
-          navigate('/');
-          return;
-        }
-
-        // Check if invite has already been accepted
-        if (data.status === 'accepted') {
-          addToast({
-            title: 'Invite Used',
-            message: 'This invite has already been used',
-            type: 'error'
-          });
-          navigate('/');
-          return;
-        }
-
+        const data = await response.json();
         setInviteData(data);
         setIsValid(true);
       } catch (error) {
@@ -127,70 +85,27 @@ const AcceptInvitePage: React.FC = () => {
     if (!token || !inviteData) return;
 
     try {
-      // 1. Sign up the user
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: inviteData.email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`
-        }
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: inviteData.email,
+          password,
+          displayName: inviteData.email.split('@')[0], // Use email username as display name
+          role: inviteData.role,
+        }),
       });
 
-      if (signUpError) throw signUpError;
-
-      if (!authData.user) {
-        throw new Error('No user data returned');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create account');
       }
-
-      // 2. Check if profile exists and update/create accordingly
-      const { data: existingProfile, error: profileCheckError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (profileCheckError && profileCheckError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-        throw profileCheckError;
-      }
-
-      let profileError;
-      if (existingProfile) {
-        // Update existing profile
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            email: inviteData.email,
-            role: inviteData.role as 'manager' | 'admin' | 'auditor' | 'user' | 'visitor',
-          })
-          .eq('id', authData.user.id);
-        profileError = error;
-      } else {
-        // Create new profile
-        const { error } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: authData.user.id,
-              email: inviteData.email,
-              role: inviteData.role as 'manager' | 'admin' | 'auditor' | 'user' | 'visitor',
-            }
-          ]);
-        profileError = error;
-      }
-
-      if (profileError) throw profileError;
-
-      // 3. Update the invite status
-      const { error: inviteError } = await supabase
-        .from('invites')
-        .update({ status: 'accepted' })
-        .eq('invite_token', token);
-
-      if (inviteError) throw inviteError;
 
       addToast({
         title: 'Success',
-        message: 'Account created successfully! Please check your email to confirm your account.',
+        message: 'Account created successfully! You can now log in.',
         type: 'success'
       });
 

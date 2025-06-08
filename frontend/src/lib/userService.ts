@@ -1,19 +1,19 @@
 import { UserRole } from '../types';
-import { supabase } from './supabase';
+import { api } from './api'; // Import api from ./api
+
+// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'; // Removed unused constant
 
 /**
  * Get the role of a specific user by their ID
  */
 export async function getUserRole(userId: string): Promise<UserRole> {
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
+    // api interceptor automatically adds the token if available
+    const response = await api.get<UserRole>(`/users/${userId}/role`);
 
-    if (error) throw error;
-    return data.role as UserRole || 'visitor'; // Default to 'visitor' if role is null
+    // Axios handles non-OK responses by throwing errors.
+    // Response data is in response.data.
+    return response.data || 'visitor'; // Default to 'visitor' if role is null
   } catch (error) {
     console.error('Error fetching user role:', error);
     return 'visitor';
@@ -54,10 +54,12 @@ export function hasPermission(userRole: UserRole, requiredRoles: UserRole[]): bo
  */
 export async function getCurrentUserRole(): Promise<UserRole> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return 'visitor';
+    // api interceptor automatically adds the token if available
+    const response = await api.get<UserRole>('/auth/me');
 
-    return await getUserRole(user.id);
+    // Axios handles non-OK responses by throwing errors.
+    // Response data is in response.data.
+    return response.data || 'visitor'; // Default to 'visitor' if role is null
   } catch (error) {
     console.error('Error getting current user role:', error);
     return 'visitor';

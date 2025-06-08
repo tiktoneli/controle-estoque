@@ -41,6 +41,7 @@ public class TypeAttribute {
 
     private Boolean isRequired = false;
     private String defaultValue;
+    private Boolean isUnique = false;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

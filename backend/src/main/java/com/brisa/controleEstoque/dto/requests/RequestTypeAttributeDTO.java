@@ -4,8 +4,6 @@ import com.brisa.controleEstoque.entity.enums.AttributeDataType;
 import com.brisa.controleEstoque.exceptions.ResourceBadRequestException;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.UUID;
 
 public class RequestTypeAttributeDTO {
@@ -25,6 +23,8 @@ public class RequestTypeAttributeDTO {
     private String defaultValue;
 
     private String options; // Comma-separated options for SELECT data type
+
+    private Boolean isUnique;
 
     public void validate() {
         if (attributeId == null) {
@@ -96,5 +96,13 @@ public class RequestTypeAttributeDTO {
 
     public void setOptions(String options) {
         this.options = options;
+    }
+
+    public Boolean getIsUnique() {
+        return isUnique;
+    }
+
+    public void setIsUnique(Boolean isUnique) {
+        this.isUnique = isUnique;
     }
 }

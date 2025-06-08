@@ -28,7 +28,7 @@ export const LocationsPage: React.FC = () => {
   });
   const { addToast } = useToast();
 
-  const fetchLocations = async (pageRequest: PageRequest) => {
+  const fetchLocations = async (pageRequest: PageRequest): Promise<Page<Location>> => {
     const params = new URLSearchParams();
     
     if (debouncedSearch) {
@@ -36,7 +36,8 @@ export const LocationsPage: React.FC = () => {
     }
     
     const endpoint = `locations?${params.toString()}`;
-    return api.get<Page<Location>>(endpoint, pageRequest);
+    const response = await api.get<Page<Location>>(endpoint, { params: pageRequest });
+    return response.data;
   };
 
   const {
@@ -99,7 +100,7 @@ export const LocationsPage: React.FC = () => {
       console.error('Error creating location:', error);
       addToast({
         title: 'Error',
-        message: 'Failed to create location',
+        message: error instanceof Error ? error.message : 'Failed to create location',
         type: 'error'
       });
     }
@@ -142,16 +143,16 @@ export const LocationsPage: React.FC = () => {
       if (!selectedLocation) return;
 
       // Check for items in the location
-      // const items = await api.get<{ content: { id: string }[] }>(`batch-items?locationId=${selectedLocation.id}`);
+      const items = await api.get<Page<{ id: string }>>(`batch-items?locationId=${selectedLocation.id}&size=1`);
       
-      // if (items.content.length > 0) {
-      //   addToast({
-      //     title: 'Cannot Delete',
-      //     message: 'This location has items. Please move or delete them first.',
-      //     type: 'error'
-      //   });
-      //   return;
-      // }
+      if (items.data.content.length > 0) {
+        addToast({
+          title: 'Cannot Delete',
+          message: 'This location has items. Please move or delete them first.',
+          type: 'error'
+        });
+        return;
+      }
 
       await api.delete(`locations/${selectedLocation.id}`);
       loadPage(currentPage); // Refresh current page

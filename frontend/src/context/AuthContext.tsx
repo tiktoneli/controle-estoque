@@ -1,12 +1,21 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, getCurrentUser } from '../lib/supabase';
 import { User } from '../types';
+import { login as authLogin, logout as authLogout, getCurrentUser } from '../lib/authService';
+
+interface LoginResponse {
+  token: string;
+  type: string;
+  email: string;
+  displayName: string;
+  role: string;
+  id: string;
+}
 
 interface AuthContextProps {
   user: User | null;
   loading: boolean;
   error: Error | null;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: LoginResponse | null; error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -21,28 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchUser = async () => {
       try {
         setLoading(true);
-        
-        // Get current user from Supabase auth
         const currentUser = await getCurrentUser();
-        
-        if (currentUser) {
-          // Get user profile data
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .single();
-            
-          if (error) throw error;
-          
-          setUser({
-            id: currentUser.id,
-            email: currentUser.email || '',
-            display_name: data?.display_name || '',
-            role: data?.role || 'user',
-            avatar_url: data?.avatar_url
-          });
-        }
+        setUser(currentUser);
       } catch (err) {
         console.error('Error fetching user:', err);
         setError(err instanceof Error ? err : new Error('Failed to fetch user'));
@@ -51,32 +40,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Set up auth state listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          fetchUser();
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-        }
-      }
-    );
-
     fetchUser();
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   }, []);
 
   const handleSignIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await authLogin(email, password);
       
       if (error) throw error;
+      
+      if (data) {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      }
       
       return { data, error: null };
     } catch (err) {
@@ -87,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authLogout();
       setUser(null);
     } catch (err) {
       console.error('Error signing out:', err);
@@ -106,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = (): AuthContextProps => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

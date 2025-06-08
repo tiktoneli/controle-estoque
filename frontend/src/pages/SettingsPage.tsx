@@ -1,97 +1,75 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Button } from '../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { User, KeyRound, Mail, Shield } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Button } from '../components/ui/Button';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [passwords, setPasswords] = useState({
     current: '',
     new: '',
-    confirm: ''
+    confirm: '',
   });
 
-  const handleUpdateDisplayName = async () => {
-    try {
-      setIsLoading(true);
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ display_name: displayName })
-        .eq('id', user?.id);
-
-      if (error) throw error;
-
-      addToast({
-        title: 'Success',
-        message: 'Display name updated successfully',
-        type: 'success'
-      });
-
-      setIsEditingName(false);
-    } catch (error) {
-      console.error('Error updating display name:', error);
-      addToast({
-        title: 'Error',
-        message: 'Failed to update display name',
-        type: 'error'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleChangePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      addToast({
+        title: 'Error',
+        message: 'New passwords do not match',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (passwords.new.length < 6) {
+      addToast({
+        title: 'Error',
+        message: 'New password must be at least 6 characters',
+        type: 'error',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      setIsLoading(true);
-
-      if (passwords.new !== passwords.confirm) {
-        addToast({
-          title: 'Error',
-          message: 'New passwords do not match',
-          type: 'error'
-        });
-        return;
-      }
-
-      if (passwords.new.length < 6) {
-        addToast({
-          title: 'Error',
-          message: 'Password must be at least 6 characters',
-          type: 'error'
-        });
-        return;
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        password: passwords.new
+      const response = await fetch(`${API_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          currentPassword: passwords.current,
+          newPassword: passwords.new,
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to change password');
+      }
 
       addToast({
         title: 'Success',
-        message: 'Password updated successfully',
-        type: 'success'
+        message: 'Password changed successfully',
+        type: 'success',
       });
 
-      setPasswords({ current: '', new: '', confirm: '' });
       setIsChangingPassword(false);
+      setPasswords({ current: '', new: '', confirm: '' });
     } catch (error) {
-      console.error('Error changing password:', error);
       addToast({
         title: 'Error',
-        message: 'Failed to change password',
-        type: 'error'
+        message: error instanceof Error ? error.message : 'Failed to change password',
+        type: 'error',
       });
     } finally {
       setIsLoading(false);
@@ -100,107 +78,56 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-8">Settings</h1>
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
-      <div className="space-y-6 max-w-2xl">
-        {/* Profile Information */}
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="w-5 h-5 mr-2" />
-              Profile Information
-            </CardTitle>
+            <CardTitle>Account Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Mail className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Email</span>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <Input
+                  type="email"
+                  value={user?.email || ''}
+                  disabled
+                />
               </div>
-              <span className="text-sm text-gray-600">{user?.email}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Shield className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Role</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Display Name</label>
+                <Input
+                  type="text"
+                  value={user?.display_name || ''}
+                  disabled
+                />
               </div>
-              <span className="text-sm text-gray-600 capitalize">{user?.role}</span>
-            </div>
-
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Display Name</label>
-                  <div className="mt-1">
-                    {isEditingName ? (
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="Enter display name"
-                        />
-                        <Button
-                          onClick={handleUpdateDisplayName}
-                          disabled={isLoading}
-                          size="sm"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditingName(false);
-                            setDisplayName(user?.display_name || '');
-                          }}
-                          size="sm"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-600">{user?.display_name || 'Not set'}</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsEditingName(true)}
-                        >
-                          Edit
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Role</label>
+                <Input
+                  type="text"
+                  value={user?.role || ''}
+                  disabled
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Password Change */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <KeyRound className="w-5 h-5 mr-2" />
-              Change Password
-            </CardTitle>
+            <CardTitle>Security</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="change-password"
-                  checked={isChangingPassword}
-                  onChange={(e) => setIsChangingPassword(e.target.checked)}
-                  className="h-4 w-4 text-[#00859e] focus:ring-[#00859e] border-gray-300 rounded"
-                />
-                <label htmlFor="change-password" className="ml-2 block text-sm text-gray-900">
-                  I want to change my password
-                </label>
-              </div>
-
-              {isChangingPassword && (
+              {!isChangingPassword ? (
+                <Button
+                  onClick={() => setIsChangingPassword(true)}
+                >
+                  Change Password
+                </Button>
+              ) : (
                 <div className="space-y-4 pt-4">
                   <Input
                     type="password"

@@ -28,6 +28,7 @@ CREATE TABLE type_attribute (
     type_id UUID REFERENCES type(id) ON DELETE CASCADE,
     attribute_id UUID REFERENCES attribute(id) ON DELETE CASCADE,
     is_required BOOLEAN DEFAULT false,
+    is_unique BOOLEAN DEFAULT false,
     default_value TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

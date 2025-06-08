@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -20,12 +20,13 @@ import { NavigationItem } from '../../types';
 
 export const MainLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const { user, signOut } = useAuth();
   const { toasts, removeToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -39,6 +40,23 @@ export const MainLayout: React.FC = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        window.innerWidth < 1024 && 
+        sidebarRef.current && 
+        !sidebarRef.current.contains(event.target as Node) &&
+        toggleButtonRef.current &&
+        !toggleButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const navigationItems: NavigationItem[] = [
@@ -91,32 +109,29 @@ export const MainLayout: React.FC = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
-
   return (
     <div className="min-h-screen bg-sky-50">
       <div className="flex h-screen">
-        {/* Sidebar - Desktop */}
+        {/* Sidebar */}
         <div
+          ref={sidebarRef}
           className={`fixed lg:static w-64 bg-[#445372] text-white transition-all duration-300 transform ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:translate-x-0 z-30 flex flex-col h-full`}
         >
           <div className="flex items-center justify-between h-16 px-4 border-b border-[#384560] flex-shrink-0">
-            <h1 className="text-xl font-bold">Inventory Control</h1>
+            <h1 className="text-xl font-bold truncate">Inventory Control</h1>
             <button
               onClick={toggleSidebar}
-              className="lg:hidden p-1 rounded-md hover:bg-[#384560]"
+              className="lg:hidden p-1 rounded-md hover:bg-[#384560] transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Scrollable Navigation */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="py-4">
+          {/* Navigation */}
+          <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#384560] scrollbar-track-transparent">
+            <nav className="py-4">
               <ul className="space-y-1 px-2">
                 {navigationItems.map((item) => (
                   <li key={item.name}>
@@ -124,13 +139,13 @@ export const MainLayout: React.FC = () => {
                       <div>
                         <button
                           onClick={() => toggleExpand(item.name)}
-                          className={`flex items-center justify-between w-full px-4 py-2 text-left rounded-md hover:bg-[#384560] ${
+                          className={`flex items-center justify-between w-full px-4 py-2 text-left rounded-md hover:bg-[#384560] transition-colors ${
                             expandedItems.includes(item.name) ? 'bg-[#384560]' : ''
                           }`}
                         >
                           <div className="flex items-center">
                             {item.icon}
-                            <span className="ml-3">{item.name}</span>
+                            <span className="ml-3 truncate">{item.name}</span>
                           </div>
                           <ChevronDown
                             className={`w-4 h-4 transition-transform ${
@@ -144,16 +159,15 @@ export const MainLayout: React.FC = () => {
                               <li key={child.name}>
                                 <a
                                   href={child.path}
-                                  className={`block px-4 py-2 rounded-md hover:bg-[#384560] ${
+                                  className={`block px-4 py-2 rounded-md hover:bg-[#384560] transition-colors ${
                                     location.pathname === child.path ? 'bg-[#384560]' : ''
                                   }`}
                                   onClick={(e) => {
                                     e.preventDefault();
                                     navigate(child.path);
-                                    setIsMobileMenuOpen(false);
                                   }}
                                 >
-                                  {child.name}
+                                  <span className="truncate">{child.name}</span>
                                 </a>
                               </li>
                             ))}
@@ -163,23 +177,22 @@ export const MainLayout: React.FC = () => {
                     ) : (
                       <a
                         href={item.path}
-                        className={`flex items-center px-4 py-2 rounded-md hover:bg-[#384560] ${
+                        className={`flex items-center px-4 py-2 rounded-md hover:bg-[#384560] transition-colors ${
                           location.pathname === item.path ? 'bg-[#384560]' : ''
                         }`}
                         onClick={(e) => {
                           e.preventDefault();
                           navigate(item.path);
-                          setIsMobileMenuOpen(false);
                         }}
                       >
                         {item.icon}
-                        <span className="ml-3">{item.name}</span>
+                        <span className="ml-3 truncate">{item.name}</span>
                       </a>
                     )}
                   </li>
                 ))}
               </ul>
-            </div>
+            </nav>
           </div>
 
           {/* User Section */}
@@ -201,27 +214,14 @@ export const MainLayout: React.FC = () => {
               <span className="ml-3">Sign Out</span>
             </button>
           </div>
-
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-[#384560] bg-[#384560] flex-shrink-0">
-            <div className="text-sm text-gray-400">
-              <p className="text-center">© 2024 Inventory Control</p>
-              <div className="flex justify-center space-x-4 text-xs mt-1">
-                <a href="#" className="hover:text-gray-300">Support</a>
-                <a href="#" className="hover:text-gray-300">Privacy</a>
-                <a href="#" className="hover:text-gray-300">Terms</a>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Main Content */}
-        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          isSidebarOpen ? 'lg:ml-0' : ''
-        }`}>
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
           <header className="bg-white border-b border-gray-200 h-16 flex items-center px-4 sticky top-0 z-20">
             <button
+              ref={toggleButtonRef}
               onClick={toggleSidebar}
               className="p-2 rounded-md text-gray-500 hover:bg-gray-100 lg:hidden"
             >
@@ -229,21 +229,11 @@ export const MainLayout: React.FC = () => {
             </button>
 
             <div className="ml-4 flex-1">
-              <h2 className="text-lg font-semibold text-gray-800">Welcome back, {user?.display_name || 'User'}</h2>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              {/* Add notification, profile buttons, etc. here */}
+              <h2 className="text-lg font-semibold text-gray-800 truncate">
+                Welcome back, {user?.display_name || 'User'}
+              </h2>
             </div>
           </header>
-
-          {/* Mobile Menu Overlay */}
-          {isMobileMenuOpen && (
-            <div
-              className="fixed inset-0 z-10 bg-black bg-opacity-50 lg:hidden"
-              onClick={toggleMobileMenu}
-            ></div>
-          )}
 
           {/* Page Content */}
           <main className="flex-1 p-4 md:p-6 overflow-auto">

@@ -42,8 +42,8 @@ export const ProductTypesPage: React.FC = () => {
     }
 
     const endpoint = `types?${params.toString()}`;
-    const response = await api.get<Page<ProductType>>(endpoint, pageRequest);
-    return response;
+    const response = await api.get<Page<ProductType>>(endpoint, { params: pageRequest });
+    return response.data;
   };
 
   const {
@@ -165,7 +165,8 @@ export const ProductTypesPage: React.FC = () => {
       if (!selectedProductType) return;
 
       // Check for existing products
-      const products = await api.get<Page<Product>>(`products?typeId=${selectedProductType.id}`);
+      const response = await api.get<Page<Product>>(`products?typeId=${selectedProductType.id}`);
+      const products = response.data;
 
       if (products.content.length > 0) {
         addToast({
